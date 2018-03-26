@@ -1,13 +1,90 @@
 #!/usr/bin/env python
 # coding=utf-8
+# author 92ez.com
 
+from flask import Flask, render_template, request, abort, send_from_directory
 import requests
 import sys
 import os
 import re
 
+app = Flask(__name__)
 
-def get_source(nickname, page_index, source_type):
+
+@app.route("/search", methods=['POST'])
+def search():
+    nickname = request.form.get('nickname')
+    source_type = request.form.get('type')
+    user_id = request.form.get('uid')
+    if user_id == "user0001":
+        if len(nickname) > 0:
+            get_source(nickname, 1, source_type, user_id)
+            return "complete!"
+        else:
+            return "nickname is empty"
+    else:
+        return "can not use!!"
+
+
+@app.route("/history", methods=['GET'])
+def history():
+    user_id = request.args.get('uid')
+    if len(user_id) < 1:
+        return "user id is empty !"
+    else:
+        try:
+            list_data = os.listdir(sys.path[0] + '/download/' + user_id)
+            return render_template("history.html", uid=user_id, data=list_data)
+        except Exception as e:
+            return "user is not exist!"
+
+
+@app.route("/type", methods=['GET'])
+def gettype():
+    user_id = request.args.get('uid')
+    blog = request.args.get('blog')
+    if len(user_id) < 1:
+        return "user id is empty !"
+    else:
+        try:
+            list_data = os.listdir(sys.path[0] + '/download/' + user_id + '/' + blog)
+            return render_template("type.html", blog=blog, uid=user_id, data=list_data)
+        except Exception as e:
+            return "user is not exist!"
+
+
+@app.route("/list", methods=['GET'])
+def getlist():
+    user_id = request.args.get('uid')
+    blog = request.args.get('blog')
+    dir = request.args.get('dir')
+    if len(user_id) < 1:
+        return "user id is empty !"
+    else:
+        try:
+            list_data = os.listdir(sys.path[0] + '/download/' + user_id + '/' + blog + '/' + dir)
+            return render_template("list.html", blog=blog, type=dir, uid=user_id, data=list_data)
+        except Exception as e:
+            return "user is not exist!"
+
+
+@app.route("/download", methods=['GET'])
+def download():
+    filepath = sys.path[0] + '/download/' + request.args.get('path')
+    filename = request.args.get('name')
+    if os.path.isfile(filepath + filename):
+        print(filepath + filename)
+        return send_from_directory(filepath, filename, as_attachment=True)
+    else:
+        abort(404)
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+def get_source(nickname, page_index, source_type, user_id):
     aim_url = "https://%s.tumblr.com/page/%d" % (nickname, page_index)
     print('[o] Get source from blog %s ...' % aim_url)
     try:
@@ -27,7 +104,7 @@ def get_source(nickname, page_index, source_type):
                 source_elements = re.findall(r'<iframe(.+?)>', response_string)
 
             if len(source_elements) > 0:
-                dir_path = sys.path[0] + '/' + aim_url.split('//')[1].split('.')[0] + '/'
+                dir_path = sys.path[0] + '/download/' + user_id + '/' + aim_url.split('//')[1].split('.')[0] + '/'
                 if not os.path.exists(dir_path):
                     os.makedirs(dir_path)
 
@@ -54,12 +131,12 @@ def get_source(nickname, page_index, source_type):
             else:
                 print('[x] Can not get any source.')
             page_index += 1
-            get_source(nickname, page_index, source_type)
+            get_source(nickname, page_index, source_type, user_id)
         else:
             print('[!] Get source complete!')
     except Exception as e:
         print(e)
-        get_source(nickname, page_index, source_type)
+        get_source(nickname, page_index, source_type, user_id)
 
 
 def write_file(source_url, dir_path, file_name):
@@ -72,9 +149,5 @@ def write_file(source_url, dir_path, file_name):
         print('[*] Source %s has been downloaded.' % file_name)
 
 
-if __name__ == '__main__':
-    source_type = sys.argv[1]
-    # source_type = "images"
-    user_nickname = sys.argv[2]
-    # user_nickname = "itunesartworks"
-    get_source(user_nickname, 1, source_type)
+if __name__ == "__main__":
+    app.run(debug=True)
